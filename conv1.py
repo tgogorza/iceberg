@@ -22,7 +22,7 @@ Y = is_iceberg
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state=123, train_size=0.8)
 
 learning_rate = 0.0001
-epochs = 105
+epochs = 50
 batch_size = 100
 display_step = 1
 
@@ -92,15 +92,16 @@ with tf.Session() as sess:
             batch_x, batch_y = X_batches[i], Y_batches[i]
             # Run optimization op (backprop) and cost op (to get loss value)
             # _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
-            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, keep_prob: 0.7})
+            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, keep_prob: 0.5})
             # Compute average loss
             avg_cost += c / total_batch
         # Display logs per epoch step
         if epoch % display_step == 0:
             print("Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(avg_cost))
-            acc_train = accuracy.eval(feed_dict={x: X_train, y: Y_train, keep_prob: 1.0})
-            acc_test = accuracy.eval(feed_dict={x: X_test, y: Y_test, keep_prob: 1.0})
+            acc_train = accuracy.eval(feed_dict={x: X_train[:100], y: Y_train[:100], keep_prob: 1.0})
+            acc_test = accuracy.eval(feed_dict={x: X_test[:100], y: Y_test[:100], keep_prob: 1.0})
             print(epoch + 1, "Train accuracy:", acc_train, "Validation accuracy:", acc_test)
+            # print(epoch + 1, "Validation accuracy:", acc_test)
     print("Optimization Finished!")
 
 
