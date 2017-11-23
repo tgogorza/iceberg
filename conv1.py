@@ -21,15 +21,17 @@ X = np.stack([bands_1, bands_2], axis=3).squeeze()
 Y = is_iceberg
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state=123, train_size=0.8)
 
-learning_rate = 0.0001
-epochs = 50
+learning_rate = 0.001
+reg_param = 0.5
+epochs = 100
 batch_size = 100
-display_step = 1
+display_step = 25
 
-# x = tf.placeholder(tf.float32, shape=(None, X.shape[1], X.shape[2], 1), name='x')
+tf.reset_default_graph()
+tf.set_random_seed(123)
 x = tf.placeholder(tf.float32, shape=(None, X.shape[1], X.shape[2], X.shape[3]), name='x')
 y = tf.placeholder(tf.float32, shape=(None, 1), name='y')
-keep_prob = tf.placeholder(tf.float32)
+keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
 # def conv_net(x):
 # with tf.variable_scope('ConvNet'):
@@ -38,7 +40,7 @@ conv1 = tf.layers.conv2d(x,
                          kernel_size=[5, 5],
                          padding='same',
                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(seed=123),
-                         activation=tf.nn.relu)
+                         activation=tf.nn.relu, name='conv1')
 pool1 = tf.layers.max_pooling2d(conv1, pool_size=[2, 2], strides=2)
 conv2 = tf.layers.conv2d(pool1,
                          filters=32,
@@ -58,25 +60,37 @@ pool3 = tf.layers.max_pooling2d(conv3, pool_size=[2, 2], strides=2)
 pool3_flat = tf.contrib.layers.flatten(pool3)
 dense1 = tf.layers.dense(pool3_flat, units=1024, activation=tf.nn.relu)
 dropout1 = tf.layers.dropout(dense1, keep_prob)
-dense2 = tf.layers.dense(dropout1, units=128, activation=tf.nn.relu)
+dense2 = tf.layers.dense(dropout1, units=512, activation=tf.nn.relu)
 dropout2 = tf.layers.dropout(dense2, keep_prob)
 dense3 = tf.layers.dense(dropout2, units=64, activation=tf.nn.relu)
-logits = tf.layers.dense(inputs=dense3, units=1)
-activ = tf.sigmoid(logits)
+logits = tf.layers.dense(inputs=dense3, units=1, name='logits')
+# with tf.name_scope("output"):
+activ = tf.sigmoid(logits, name='activ')
 # return logits
 
 # preds = conv_net(x)
 
 # with tf.name_scope("loss"):
+# cost = tf.losses.log_loss(labels=y, predictions=activ, reduction=tf.losses.Reduction.NONE)
+# cost = tf.reduce_mean(tf.losses.log_loss(labels=y, predictions=activ, reduction=tf.losses.Reduction.NONE), name='loss')
 cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=y), name='loss')
+# regularizers = tf.nn.l2_loss(dense1) + tf.nn.l2_loss(dense2) + tf.nn.l2_loss(dense3)
+# cost = tf.reduce_mean(cost + reg_param * regularizers)
 
 # with tf.name_scope("train"):
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
-# with tf.name_scope("eval"):
-predicted_class = tf.greater(activ, 0.5)
+# with tf.name_scope("accuracy"):
+predicted_class = tf.greater(logits, 0.5)
+    # with tf.name_scope('correct_prediction'):
 correct = tf.equal(predicted_class, tf.equal(y, 1.0))
-accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
+    # with tf.name_scope('accuracy'):
+accuracy = tf.reduce_mean(tf.cast(correct, 'float'), name='accuracy')
+
+merged = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter('./train')
+test_writer = tf.summary.FileWriter('./test')
+# writer = tf.train.SummaryWriter('./train', graph=tf.get_default_graph())
 
 init = tf.global_variables_initializer()
 
@@ -92,7 +106,7 @@ with tf.Session() as sess:
             batch_x, batch_y = X_batches[i], Y_batches[i]
             # Run optimization op (backprop) and cost op (to get loss value)
             # _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
-            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, keep_prob: 0.5})
+            summary, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, keep_prob: 0.5})
             # Compute average loss
             avg_cost += c / total_batch
         # Display logs per epoch step
@@ -104,11 +118,6 @@ with tf.Session() as sess:
             # print(epoch + 1, "Validation accuracy:", acc_test)
     print("Optimization Finished!")
 
-
-    # print("Train Accuracy:", accuracy.eval({x: X_train, y: Y_train, keep_prob: 1.0}))
-    # print("Test Accuracy:", accuracy.eval({x: X_test, y: Y_test, keep_prob: 1.0}))
-    print predicted_class.eval({x: X_test}).T.astype(int)
-    # a = predicted_class.eval({x: X_test, keep_prob: 1.0}).T.astype(int)
-    # print Y_test.T
-    # b = Y_test.T
-    # print correct.eval({x: X_test, y: Y_test, keep_prob: 1.0}).T.astype(int)
+    saver = tf.train.Saver()
+    saver.save(sess, './conv1/conv2')
+    print("Model saved")
